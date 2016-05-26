@@ -28,10 +28,10 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 
     TMapView tmapview= null;
     TMapGpsManager tmapgps;
-    TMapPolyLine polyline;
     TMapPoint current_point = null;
     TMapPoint end_point;
     TMapPoint crosswalk;
+    int crosswalk_id;
     ArrayList arPoint;
     String arr;
     @Override
@@ -48,8 +48,20 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         tmapgps = new TMapGpsManager(this);
 
         current_point = new TMapPoint(0, 0);
-        crosswalk = new TMapPoint(36.37343974435254, 127.36568212509155);
+        crosswalk = new TMapPoint(36.373692, 127.365086);
+        crosswalk_id = 1;
+        TMapMarkerItem cw = new TMapMarkerItem();
+        cw.setTMapPoint(crosswalk);
+        cw.setVisible(TMapMarkerItem.VISIBLE);
         arPoint = new ArrayList<TMapPoint>();
+
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                give_warning();
+            }
+        });
+        thread.start();
     }
 
     @Override
@@ -105,16 +117,12 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 
     public void draw_point(TMapPoint p) {
 
-        Log.d("Point", arPoint.toString());
-
         TMapMarkerItem tItem = new TMapMarkerItem();
-        int index = arPoint.size() - 1;
 
         tItem.setTMapPoint(p);
-        tItem.setName("" + index);
         tItem.setVisible(TMapMarkerItem.VISIBLE);
         tItem.setPosition((float) 0.5, (float) 1.0);
-        tmapview.addMarkerItem(""+index, tItem);
+        tmapview.addMarkerItem(""+crosswalk_id, tItem);
 
 //        for(int i = 0 ; i < arPoint.size() ; i++) {
 //
@@ -127,8 +135,6 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 //            tItem.setPosition((float) 0.5, (float) 1.0);
 //            tmapview.addMarkerItem(""+i, tItem);
 //        }
-
-
     }
 
     @Override
@@ -152,7 +158,6 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 
         draw_path();
     }
-
     @Override
     public void onLongPressEvent(ArrayList<TMapMarkerItem> arrayList, ArrayList<TMapPOIItem> arrayList1, final TMapPoint tMapPoint) {
 
@@ -235,5 +240,14 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         double d = R * c;
         return d * 1000; // meters
+    }
+
+    public void give_warning() { // run as thread, give warning when BLE signal is detected && has same crosswalk_id
+        while(true) {
+            // scanning BLE
+            // if it receives ble warning msg,
+            // and if given id is same with crosswalk_id,
+            // give warning msg like Toast or something like that
+        }
     }
 }
