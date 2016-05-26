@@ -34,6 +34,9 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
     int crosswalk_id;
     ArrayList arPoint;
     String arr;
+
+    Beacon mBeaconManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,9 +53,7 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         current_point = new TMapPoint(0, 0);
         crosswalk = new TMapPoint(36.373692, 127.365086);
         crosswalk_id = 1;
-        TMapMarkerItem cw = new TMapMarkerItem();
-        cw.setTMapPoint(crosswalk);
-        cw.setVisible(TMapMarkerItem.VISIBLE);
+        draw_point(crosswalk);
         arPoint = new ArrayList<TMapPoint>();
 
         Thread thread = new Thread(new Runnable() {

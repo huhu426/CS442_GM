@@ -1,4 +1,4 @@
-package com.kaist.user.maptest;
+package com.example.jaewonkim.tmapproject;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGattServer;
@@ -21,15 +21,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
 
-
 /**
  * Created by Hyunoo on 2016-05-26.
  */
 public class Beacon {
-
-    final byte[] beacon_danger = {0x0a,0x18};
-    final byte[] beacon_noti = {0x0a,(byte)0xe7};
-    final String send_uuid = "";
     private BluetoothAdapter mBTAdapter;
     private BluetoothLeAdvertiser mBTAdvertiser;
     private BluetoothLeScanner mBTScanner;
@@ -146,13 +141,13 @@ public class Beacon {
             super.onScanResult(callbackType, result);
             byte[] mbyte = result.getScanRecord().getBytes();
 
-            if(mbyte[2]==beacon_danger[0] && mbyte[3]==beacon_danger[1]) {
+            if(mbyte[2]==0x0a && mbyte[3]==0x18) {
                 //네비로부터 위험신호를 수신한 경우.
                 /*******************************************************
                  사용자에게 위험신호 발생시키는 코드
                  ******************************************************/
             }
-            else if(mbyte[2]==beacon_noti[0] && mbyte[3]==beacon_noti[1]) {
+            else if(mbyte[2]==0x0a && mbyte[3]==0xe7) {
                 /* 주위에 네비가 있는 정보를 수신한 경우 */
                 /*******************************************************
                  beacon 호출 간격을 줄이는 코드
@@ -175,7 +170,7 @@ public class Beacon {
         if (mBTScanner == null) {
             mBTScanner = mBTAdapter.getBluetoothLeScanner();
         }
-        if (mBTScanner != null) {
+        else if (mBTScanner != null) {
             ScanSettings.Builder msetbuilder = new ScanSettings.Builder();
             msetbuilder.setReportDelay(0);
             msetbuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
