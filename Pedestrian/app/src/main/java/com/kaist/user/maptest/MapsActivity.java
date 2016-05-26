@@ -1,6 +1,5 @@
 package com.kaist.user.maptest;
 
-
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -71,6 +70,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     //Crosswalk info
     ArrayList<Location> mCrosswalkPosition = new ArrayList<Location>();
 
+    Beacon mBeaconManager;
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -247,9 +247,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         if (temp.distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT) {
                             if (bearingMove * bearingOfCrossWalk >= 0) { //check direction
                                 if (bearingMove - bearingOfCrossWalk > -30 && bearingMove - bearingOfCrossWalk < 30) {
-                                    //startBeaconAdvertise(int index,float lattitude,float longitude,float degree,float velocity)
+                                    mBeaconManager.startBeaconAdvertise(1, 0.0f, 0.0f, 0.0f, 0.0f);//test
                                 } else {
-                                    //stopAdvertise();
+                                    mBeaconManager.stopAdvertise();
                                 }
                             } else {
                                 if (bearingMove < 0) {
