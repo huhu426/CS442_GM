@@ -21,10 +21,15 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
 
+
 /**
  * Created by Hyunoo on 2016-05-26.
  */
 public class Beacon {
+
+    final byte[] beacon_danger = {0x0a,0x18};
+    final byte[] beacon_noti = {0x0a,(byte)0xe7};
+    final String send_uuid = "";
     private BluetoothAdapter mBTAdapter;
     private BluetoothLeAdvertiser mBTAdvertiser;
     private BluetoothLeScanner mBTScanner;
@@ -141,13 +146,13 @@ public class Beacon {
             super.onScanResult(callbackType, result);
             byte[] mbyte = result.getScanRecord().getBytes();
 
-            if(mbyte[2]==0x0a && mbyte[3]==0x18) {
+            if(mbyte[2]==beacon_danger[0] && mbyte[3]==beacon_danger[1]) {
                 //네비로부터 위험신호를 수신한 경우.
                 /*******************************************************
                  사용자에게 위험신호 발생시키는 코드
                  ******************************************************/
             }
-            else if(mbyte[2]==0x0a && mbyte[3]==0xe7) {
+            else if(mbyte[2]==beacon_noti[0] && mbyte[3]==beacon_noti[1]) {
                 /* 주위에 네비가 있는 정보를 수신한 경우 */
                 /*******************************************************
                  beacon 호출 간격을 줄이는 코드
