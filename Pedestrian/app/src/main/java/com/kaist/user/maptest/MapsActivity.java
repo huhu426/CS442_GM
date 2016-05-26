@@ -123,8 +123,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mCrosswalkPosition.add(temp);
 
         bearingOfCrossWalk = mCrosswalkPosition.get(0).bearingTo(mCrosswalkPosition.get(1));
+        if (bearingOfCrossWalk < 0)
+            bearingOfCrossWalk += 360;
         Log.d(TAG, "crosswalk info distance  " + mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1))
-                + "  bearingTo  " + mCrosswalkPosition.get(0).bearingTo(mCrosswalkPosition.get(1)));
+                + "  bearingTo  " + bearingOfCrossWalk);
     }
 
     /**
@@ -140,14 +142,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        BitmapDescriptor bitmapGreenMarker = BitmapDescriptorFactory.fromResource(R.drawable.green_dot);
         Location temp = new Location("");
-        LatLng cWPos;
         Log.d(TAG, "onMapReady size  " + mCrosswalkPosition.size());
         for (int i=0; i < mCrosswalkPosition.size(); i++) {
             temp = mCrosswalkPosition.get(i);
-            cWPos = new LatLng(temp.getLatitude(), temp.getLongitude());
-            mMap.addMarker(new MarkerOptions().position(cWPos).icon(bitmapGreenMarker));
+            addMarker("green", temp.getLatitude(), temp.getLongitude());
         }
     }
 
@@ -224,9 +223,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             if (mCurrentLocation != null && mInitialLocation != null) {
 
-                BitmapDescriptor bitmapBlueMarker = BitmapDescriptorFactory.fromResource(R.drawable.blue_dot);
-                LatLng curPos = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-                mMap.addMarker(new MarkerOptions().position(curPos).icon(bitmapBlueMarker));
+                addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
 
                 if(preStepCount != stepCount) {
                     isMoving = true;
@@ -241,34 +238,45 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     for (int i=0; i < mCrosswalkPosition.size(); i++) {
                         temp = mCrosswalkPosition.get(i);
                         float bearingMove =  mPreLocation.bearingTo(mCurrentLocation);
+                        if (bearingMove < 0)
+                            bearingMove += 360;
                         Log.d(TAG, "distanceTo = " + temp.distanceTo(mCurrentLocation) + "  bearingTo = " + bearingMove);
 
                         //Send BLE packet when the distance between Pedestrian and crosswalk is lower than 5 meters
                         if (temp.distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT) {
-                            if (bearingMove * bearingOfCrossWalk >= 0) { //check direction
-                                if (bearingMove - bearingOfCrossWalk > -30 && bearingMove - bearingOfCrossWalk < 30) {
-                                    mBeaconManager.startBeaconAdvertise(1, 0.0f, 0.0f, 0.0f, 0.0f);//test
-                                } else {
-                                    mBeaconManager.stopAdvertise();
-                                }
-                            } else {
-                                if (bearingMove < 0) {
-
-                                } else {
-
-                                }
+                            if (bearingMove > bearingOfCrossWalk - 30 && bearingMove < bearingOfCrossWalk + 30) {//check direction
+                                //mBeaconManager.startBeaconAdvertise(1, 0.0f, 0.0f, 0.0f, 0.0f);//test
+                                addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
                             }
+                        } else {
+                            //mBeaconManager.stopAdvertise();
                         }
 
                     }
+                    mPreLocation.setLatitude(mCurrentLocation.getLatitude());
+                    mPreLocation.setLongitude(mCurrentLocation.getLongitude());
                 }
 
             }
-            mPreLocation.setLatitude(mCurrentLocation.getLatitude());
-            mPreLocation.setLongitude(mCurrentLocation.getLongitude());
         }
 
     }
+
+    public void addMarker(String color, double lat, double log )
+    {
+        BitmapDescriptor bitmapMarker;
+        if (color.equals("blue"))
+            bitmapMarker = BitmapDescriptorFactory.fromResource(R.drawable.blue_dot);
+        else if (color.equals("green"))
+            bitmapMarker = BitmapDescriptorFactory.fromResource(R.drawable.green_dot);
+        else if (color.equals("yellow"))
+            bitmapMarker = BitmapDescriptorFactory.fromResource(R.drawable.yellow_dot);
+        else
+            bitmapMarker = BitmapDescriptorFactory.fromResource(R.drawable.blue_dot);
+        LatLng curPos = new LatLng(lat, log);
+        mMap.addMarker(new MarkerOptions().position(curPos).icon(bitmapMarker));
+    }
+
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
