@@ -29,8 +29,10 @@ public class Beacon {
     private BluetoothLeAdvertiser mBTAdvertiser;
     private BluetoothLeScanner mBTScanner;
     private BluetoothGattServer mGattServer;
+    private Context context;
+    private int id;
 
-    private Beacon(Context context){
+    public Beacon(Context context){
         if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             return;
@@ -42,6 +44,7 @@ public class Beacon {
         if ((mBTAdapter == null) || (!mBTAdapter.isEnabled())) {
             Toast.makeText(context, R.string.bt_unavailable, Toast.LENGTH_SHORT).show();
         }
+        this.context = context;
     }
 
     private static AdvertiseSettings createAdvSettings(boolean connectable, int timeoutMillis) {
@@ -140,12 +143,16 @@ public class Beacon {
         {
             super.onScanResult(callbackType, result);
             byte[] mbyte = result.getScanRecord().getBytes();
+            int index = ((((int)mbyte[0] & 0xff) << 24) |
+                    (((int)mbyte[1] & 0xff) << 16) |
+                    (((int)mbyte[2] & 0xff) << 8) |
+                    (((int)mbyte[3] & 0xff)));
 
             if(mbyte[2]==0x0a && mbyte[3]==0x18) {
-                //네비로부터 위험신호를 수신한 경우.
-                /*******************************************************
-                 사용자에게 위험신호 발생시키는 코드
-                 ******************************************************/
+                if(id == index)
+                    Toast.makeText(context, "WATCH OUT!", Toast.LENGTH_LONG);
+                else
+                    Toast.makeText(context, "Ignore Msg", Toast.LENGTH_SHORT);
             }
             else if(mbyte[2]==0x0a && mbyte[3]==0xe7) {
                 /* 주위에 네비가 있는 정보를 수신한 경우 */
@@ -163,7 +170,8 @@ public class Beacon {
         }
     };
 
-    public void scanAdvertise(){
+    public void scanAdvertise(int id){
+        this.id = id;
         if (mBTAdapter == null) {
             return;
         }
