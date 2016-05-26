@@ -1,12 +1,8 @@
 package com.kaist.user.maptest;
 
-
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -17,8 +13,6 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
-import android.view.View;
-import android.widget.RelativeLayout;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -35,37 +29,48 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.ArrayList;
+
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, SensorEventListener,
         GoogleApiClient.ConnectionCallbacks, LocationListener, GoogleApiClient.OnConnectionFailedListener {
 
     private GoogleMap mMap;
     final String TAG = "Maptest";
+    final float THRESHOLD_DISTANCE_TO_ALERT = 5.0f; // 5 meters
+
     private SensorManager mSensorManager;
     private Sensor mAccSensor;
     private Sensor mRotationSensor;
 
+    //for GPS tracking
     String mLatitude = "36.32138824", mLongitude = "127.41972351";
     String mInitialLatitude = "0", mInitialLongitude = "0";
     Location mInitialLocation = new Location("");
     Location mCurrentLocation = new Location("");
+    Location mPreLocation = new Location("");
     LocationManager locationManager;
     LocationRequest locationRequest;
-    int stepCount=0;
-    double checkPoint=0;
 
+    //for checking movement
+    int stepCount = 0;
+    int preStepCount = 0;
+    boolean isMoving = false;
+    double checkPoint = 0;
+    float bearingOfCrossWalk = 0.0f;
     double sigma = 0;
     final int FILTER_BUF_NUM = 16;
     final int FILTER_NUM = 11;
     float magnitudeAcc[] = new float[FILTER_BUF_NUM];
-
     float gravity[]=new float[3];
-    float raw_acc[]=new float[3];
     float rMat[] = new float[9];
     float orientation[] = new float[3];
     private float azimuth; // View to draw a compass
     private float radianAzimuth; // View to draw a compass
-    DrawOnTop mDraw;
 
+    //Crosswalk info
+    ArrayList<Location> mCrosswalkPosition = new ArrayList<Location>();
+
+    Beacon mBeaconManager;
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -76,10 +81,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        mDraw = new DrawOnTop(this);
         setContentView(R.layout.activity_maps);
-        addContentView(mDraw, new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -108,6 +111,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mRotationSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
         mSensorManager.registerListener(this, mAccSensor, SensorManager.SENSOR_DELAY_FASTEST);
         mSensorManager.registerListener(this, mRotationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+
+        //set temp crosswalk position
+        Location temp = new Location("");
+        temp.setLatitude(36.373719);
+        temp.setLongitude(127.365111);
+        mCrosswalkPosition.add(temp);
+        temp = new Location("");
+        temp.setLatitude(36.373665);
+        temp.setLongitude(127.365061);
+        mCrosswalkPosition.add(temp);
+
+        bearingOfCrossWalk = mCrosswalkPosition.get(0).bearingTo(mCrosswalkPosition.get(1));
+        Log.d(TAG, "crosswalk info distance  " + mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1))
+                + "  bearingTo  " + mCrosswalkPosition.get(0).bearingTo(mCrosswalkPosition.get(1)));
     }
 
     /**
@@ -123,6 +140,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+        BitmapDescriptor bitmapGreenMarker = BitmapDescriptorFactory.fromResource(R.drawable.green_dot);
+        Location temp = new Location("");
+        LatLng cWPos;
+        Log.d(TAG, "onMapReady size  " + mCrosswalkPosition.size());
+        for (int i=0; i < mCrosswalkPosition.size(); i++) {
+            temp = mCrosswalkPosition.get(i);
+            cWPos = new LatLng(temp.getLatitude(), temp.getLongitude());
+            mMap.addMarker(new MarkerOptions().position(cWPos).icon(bitmapGreenMarker));
+        }
     }
 
     @Override
@@ -185,6 +211,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 mInitialLocation.setLongitude(log);
                 mInitialLatitude = mLatitude;
                 mInitialLongitude = mLongitude;
+                mPreLocation.setLatitude(lat);
+                mPreLocation.setLongitude(log);
+                LatLng initPos = new LatLng(lat, log);
+                mMap.addMarker(new MarkerOptions().position(initPos));
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(initPos, 18));
             }
 
             mCurrentLocation.setLatitude(lat);
@@ -192,13 +223,49 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Log.d(TAG, "onLocationChanged= current mLatitude " + mCurrentLocation.getLatitude() + "  mLongitude  " + mCurrentLocation.getLongitude());
 
             if (mCurrentLocation != null && mInitialLocation != null) {
+
                 BitmapDescriptor bitmapBlueMarker = BitmapDescriptorFactory.fromResource(R.drawable.blue_dot);
-                LatLng initPos = new LatLng(mInitialLocation.getLatitude(), mInitialLocation.getLongitude());
                 LatLng curPos = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-                mMap.addMarker(new MarkerOptions().position(initPos));
                 mMap.addMarker(new MarkerOptions().position(curPos).icon(bitmapBlueMarker));
-                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(curPos, 18));
+
+                if(preStepCount != stepCount) {
+                    isMoving = true;
+                    Log.d(TAG, "Moving  preStepCount  " + preStepCount + "  stepCount  " + stepCount);
+                } else {
+                    isMoving = false;
+                }
+                preStepCount = stepCount;
+
+                if (isMoving) { //Send BLE packet when the pedestrian is walking
+                    Location temp = new Location("");
+                    for (int i=0; i < mCrosswalkPosition.size(); i++) {
+                        temp = mCrosswalkPosition.get(i);
+                        float bearingMove =  mPreLocation.bearingTo(mCurrentLocation);
+                        Log.d(TAG, "distanceTo = " + temp.distanceTo(mCurrentLocation) + "  bearingTo = " + bearingMove);
+
+                        //Send BLE packet when the distance between Pedestrian and crosswalk is lower than 5 meters
+                        if (temp.distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT) {
+                            if (bearingMove * bearingOfCrossWalk >= 0) { //check direction
+                                if (bearingMove - bearingOfCrossWalk > -30 && bearingMove - bearingOfCrossWalk < 30) {
+                                    mBeaconManager.startBeaconAdvertise(1, 0.0f, 0.0f, 0.0f, 0.0f);//test
+                                } else {
+                                    mBeaconManager.stopAdvertise();
+                                }
+                            } else {
+                                if (bearingMove < 0) {
+
+                                } else {
+
+                                }
+                            }
+                        }
+
+                    }
+                }
+
             }
+            mPreLocation.setLatitude(mCurrentLocation.getLatitude());
+            mPreLocation.setLongitude(mCurrentLocation.getLongitude());
         }
 
     }
@@ -218,13 +285,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
             gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2];
 
-            sqrt = Math.sqrt(gravity[0]*gravity[0] + gravity[1]*gravity[1] + gravity[2]*gravity[2]);
-            calculateSigma((float)sqrt);
+            sqrt = Math.sqrt(gravity[0]*gravity[0] + gravity[1]*gravity[1] + gravity[2] * gravity[2]);
+
+            calculateSigma((float) sqrt); // check step count
         }
         else if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
             SensorManager.getRotationMatrixFromVector( rMat, event.values );
-            radianAzimuth = SensorManager.getOrientation( rMat, orientation )[0];
-            azimuth = (int) (Math.toDegrees(radianAzimuth)+ 360 ) % 360;
+            radianAzimuth = SensorManager.getOrientation( rMat, orientation)[0];
+            azimuth = (int) (Math.toDegrees(radianAzimuth)+ 360 ) % 360; // Rotation of Z-axis
         }
     }
 
@@ -282,35 +350,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         sigma = Math.sqrt((double) (sum / FILTER_NUM));
 
-        if (checkPoint >= 1.6 && sigma < 1.0) {
+        if (checkPoint >= 1.0 && sigma < 0.2) {
             stepCount++;
             checkPoint = 0;
         }
 
-        if(sigma>1.6)
-            checkPoint = 1.6;
+        if(sigma>1.0)
+            checkPoint = 1.0;
 
-        Log.d(TAG, "sigma\t" + sigma + "        " + a + "        " + stepCount);
+        //Log.d(TAG, "sigma\t" + sigma + "       " + stepCount);
     }
 
-
-    class DrawOnTop extends View {
-        public DrawOnTop(Context context) {
-            super(context);
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            Paint paint = new Paint();
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.RED);
-            paint.setStrokeWidth(10);
-
-            double distance = (double)stepCount*0.75;
-
-            canvas.drawLine(700, 1200, 700 + (int) ((7 * distance) * Math.cos(radianAzimuth)), 1200 + (int) ((7 * distance) * Math.sin(radianAzimuth)), paint);
-            super.onDraw(canvas);
-            invalidate();
-        }
-    }
 }
