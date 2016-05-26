@@ -31,6 +31,7 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
     TMapPolyLine polyline;
     TMapPoint current_point = null;
     TMapPoint end_point;
+    TMapPoint crosswalk;
     ArrayList arPoint;
     String arr;
     @Override
@@ -47,6 +48,7 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         tmapgps = new TMapGpsManager(this);
 
         current_point = new TMapPoint(0, 0);
+        crosswalk = new TMapPoint(36.37343974435254, 127.36568212509155);
         arPoint = new ArrayList<TMapPoint>();
     }
 
@@ -83,14 +85,16 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 
     public void draw_path() {
         TMapData tmapdata = new TMapData();
-//        arPoint = new ArrayList<TMapPoint>();
+        arPoint = new ArrayList<TMapPoint>();
 
         try {
             tmapdata.findPathData(current_point, end_point, new TMapData.FindPathDataListenerCallback() {
                 @Override
                 public void onFindPathData(TMapPolyLine polyLine) {
+                    polyLine.addLinePoint(crosswalk);
                     tmapview.addTMapPath(polyLine);
-//                    arPoint.addAll(polyLine.getLinePoint());
+                    arPoint.addAll(polyLine.getLinePoint());
+                    Log.d("arPoint", arPoint.toString());
 //                    draw_point();
                 }
             });
@@ -152,6 +156,8 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
     @Override
     public void onLongPressEvent(ArrayList<TMapMarkerItem> arrayList, ArrayList<TMapPOIItem> arrayList1, final TMapPoint tMapPoint) {
 
+        Log.d("TestPoint", "Lat: " + tMapPoint.getLatitude() + " Lon: " + tMapPoint.getLongitude());
+        //Lat: 36.37343974435254 Lon: 127.36568212509155
         if(arrayList.size() == 0) {
             Log.d("Marker", "No Marker");
             dialog_no_marker(tMapPoint);
@@ -201,20 +207,14 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         }).show();
     }
 
-    public void checkRange(double lat, double lon) {
+    public void checkRange(double lat, double lon) { // check whether the crosswalk is in range
         boolean in = false;
 
-        for(int i = 0 ; i < arPoint.size() ; i++) {
-            TMapPoint temp = (TMapPoint)arPoint.get(i);
-            double c_lat = temp.getLatitude();
-            double c_lon = temp.getLongitude();
-            double dist = measure(lat, lon, c_lat, c_lon);
-            if(dist > 50) {
-                in = true;
-                break;
-            }
-        }
-        if(in) {
+        double c_lat = crosswalk.getLatitude();
+        double c_lon = crosswalk.getLongitude();
+        double dist = measure(lat, lon, c_lat, c_lon);
+        if(dist < 50) {
+            //do something about BLE
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -222,6 +222,7 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
                 }
             });
         }
+
     }
 
     public double measure(double lat1, double lon1, double lat2, double lon2){  // generally used geo measurement function
