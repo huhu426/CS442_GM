@@ -19,6 +19,7 @@ import android.widget.Toast;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.UUID;
 
 /**
@@ -132,6 +133,10 @@ public class Beacon {
         //return ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).getFloat();
     }
 
+    public long bytesTolong(byte[] bytes) {
+        return ByteBuffer.wrap(bytes).getLong();
+    }
+
     public int bytesToInt(byte[] bytes) {
         return ByteBuffer.wrap(bytes).getInt();
         //return ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).getFloat();
@@ -141,18 +146,24 @@ public class Beacon {
         @Override
         public void onScanResult(int callbackType, ScanResult result)
         {
+
             super.onScanResult(callbackType, result);
             byte[] mbyte = result.getScanRecord().getBytes();
-            int index = ((((int)mbyte[0] & 0xff) << 24) |
-                    (((int)mbyte[1] & 0xff) << 16) |
-                    (((int)mbyte[2] & 0xff) << 8) |
-                    (((int)mbyte[3] & 0xff)));
+            int index = bytesToInt(Arrays.copyOfRange(mbyte, 4, 8));
+            long advTime = bytesTolong(Arrays.copyOfRange(mbyte, 8, 16));
 
-            if(mbyte[2]==0x0a && mbyte[3]==0x18) {
-                if(id == index)
-                    Toast.makeText(context, "WATCH OUT!", Toast.LENGTH_LONG);
+//            Log.d("Scan", "Scan Success" + mbyte[2] + mbyte[3]);
+//            Toast.makeText(context, "Scan Success" + mbyte[2] + mbyte[3], Toast.LENGTH_SHORT);
+            if(mbyte[2]==0x0a && mbyte[3]==0x64) {
+                if(id == index) {
+                    long current_time = System.currentTimeMillis();
+                    long diff = current_time - advTime;
+                    Log.d("Scan", "Snd Time: "+advTime + "Rcv Time: "+current_time);
+                    Log.d("Scan", "Difference: " + diff);
+                    Toast.makeText(context, "WATCH OUT!", Toast.LENGTH_SHORT).show();
+                }
                 else
-                    Toast.makeText(context, "Ignore Msg", Toast.LENGTH_SHORT);
+                    Log.d("Scan", "Ignore");
             }
             else if(mbyte[2]==0x0a && mbyte[3]==0xe7) {
                 /* 주위에 네비가 있는 정보를 수신한 경우 */
@@ -173,17 +184,20 @@ public class Beacon {
     public void scanAdvertise(int id){
         this.id = id;
         if (mBTAdapter == null) {
+            Log.d("Scan", "mBTAdapter == null");
             return;
         }
         if (mBTScanner == null) {
+            Log.d("Scan", "mBTAdapter == null");
             mBTScanner = mBTAdapter.getBluetoothLeScanner();
         }
-        else if (mBTScanner != null) {
+        if (mBTScanner != null) {
             ScanSettings.Builder msetbuilder = new ScanSettings.Builder();
             msetbuilder.setReportDelay(0);
             msetbuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
 
             mBTScanner.startScan(null, msetbuilder.build(), mScanCallback);
+            Log.d("Scan", "Scan Start");
         }
     }
 

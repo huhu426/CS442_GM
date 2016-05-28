@@ -213,13 +213,13 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         double c_lon = crosswalk.getLongitude();
         double dist = measure(lat, lon, c_lat, c_lon);
         if(dist < 50) {
-            //do something about BLE
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(getApplicationContext(), "CrossWalk!", Toast.LENGTH_LONG).show();
-                }
-            });
+//            //do something about BLE
+//            runOnUiThread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    Toast.makeText(getApplicationContext(), "CrossWalk!", Toast.LENGTH_LONG).show();
+//                }
+//            });
         }
 
     }
