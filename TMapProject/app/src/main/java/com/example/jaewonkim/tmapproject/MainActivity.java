@@ -43,6 +43,8 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
+
         Intent intent = getIntent();
         double lat = intent.getDoubleExtra("lat", 0);
         double lon = intent.getDoubleExtra("lon", 0);
@@ -51,7 +53,7 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         tmap_init();
         tmapgps = new TMapGpsManager(this);
         current_point = new TMapPoint(0, 0);
-        mBeaconManager = new Beacon(getApplicationContext());
+        mBeaconManager = new Beacon(getWindow().getDecorView().getRootView());
         crosswalk = new TMapPoint(36.373692, 127.365086);
         draw_point(crosswalk);
         arPoint = new ArrayList<TMapPoint>();
@@ -73,8 +75,6 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         tmapgps.setLocationCallback();
         tmapgps.setMinTime(1000);
         tmapgps.OpenGps();
-
-
     }
 
     public void tmap_init() {
