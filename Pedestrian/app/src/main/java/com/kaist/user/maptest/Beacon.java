@@ -30,7 +30,9 @@ public class Beacon {
     private BluetoothLeScanner mBTScanner;
     private BluetoothGattServer mGattServer;
 
-    private Beacon(Context context){
+    public void init(Context context)
+    {
+
         if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             return;
@@ -89,7 +91,12 @@ public class Beacon {
     {
         return ByteBuffer.allocate(4).putInt(value).array();
     }
-    public void startBeaconAdvertise(int index,float lattitude,float longitude,float degree,float velocity) {
+    private static byte [] long2ByteArray (long value)
+    {
+        return ByteBuffer.allocate(8).putLong(value).array();
+    }
+    public void startBeaconAdvertise(int index, long time,float longitude,float degree,float velocity) {
+        Log.d("Beacon", "startBeaconAdvertise  index " + index);
         if (mBTAdapter == null) {
             return;
         }
@@ -97,14 +104,15 @@ public class Beacon {
             mBTAdvertiser = mBTAdapter.getBluetoothLeAdvertiser();
         }
         if (mBTAdvertiser != null) {
-            byte[] mData = new byte[20];
+            byte[] mData = new byte[24];
 
             System.arraycopy(int2ByteArray(index),0,mData,0,4);
-            System.arraycopy(float2ByteArray(lattitude),0,mData,4,4);
-            System.arraycopy(float2ByteArray(longitude), 0, mData, 8, 4);
-            System.arraycopy(float2ByteArray(degree),0,mData,12,4);
-            System.arraycopy(float2ByteArray(velocity),0,mData,16,4);
+            System.arraycopy(long2ByteArray (time),0,mData,4,8);
+            System.arraycopy(float2ByteArray(longitude), 0, mData, 12, 4);
+            System.arraycopy(float2ByteArray(degree),0,mData,16,4);
+            System.arraycopy(float2ByteArray(velocity),0,mData,20,4);
 
+            Log.d("Beacon", "startAdvertising  " + mData);
             mBTAdvertiser.startAdvertising(
                     createAdvSettings(false, 0),
                     createBeaconAdvertiseData(mData),
@@ -113,6 +121,7 @@ public class Beacon {
     }
 
     public void stopAdvertise() {
+        Log.d("Beacon", "stopAdvertise  ");
         if (mGattServer != null) {
             mGattServer.clearServices();
             mGattServer.close();

@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.widget.TextView;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -22,8 +23,8 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
@@ -34,8 +35,16 @@ import java.util.ArrayList;
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, SensorEventListener,
         GoogleApiClient.ConnectionCallbacks, LocationListener, GoogleApiClient.OnConnectionFailedListener {
 
-    private GoogleMap mMap;
     final String TAG = "Maptest";
+
+    private GoogleMap mMap;
+    private MapView mMapView;
+    private TextView locGps;
+    private TextView locKal;
+    private TextView moving;
+    private TextView degree;
+    private TextView ble;
+
     final float THRESHOLD_DISTANCE_TO_ALERT = 5.0f; // 5 meters
 
     private SensorManager mSensorManager;
@@ -56,7 +65,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     int preStepCount = 0;
     boolean isMoving = false;
     double checkPoint = 0;
+    float distanceBTCrossWalk = 0.0f;
     float bearingOfCrossWalk = 0.0f;
+    float bearingOfCrossWalk2 = 0.0f;
     double sigma = 0;
     final int FILTER_BUF_NUM = 16;
     final int FILTER_NUM = 11;
@@ -66,11 +77,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     float orientation[] = new float[3];
     private float azimuth; // View to draw a compass
     private float radianAzimuth; // View to draw a compass
+    boolean isInCrossWalk=false;
+
+    KalmanLatLong mKalmanFilter = new KalmanLatLong(2.0f);
 
     //Crosswalk info
     ArrayList<Location> mCrosswalkPosition = new ArrayList<Location>();
 
-    Beacon mBeaconManager;
+    Beacon mBeaconManager = new Beacon();
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -83,10 +97,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
+        mBeaconManager.init(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        //SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+        //        .findFragmentById(R.id.map);
+        //mapFragment.getMapAsync(this);
+
+        mMapView = (MapView) findViewById(R.id.mapView);
+        mMapView.onCreate(savedInstanceState);
+
+        locGps = (TextView) findViewById(R.id.gps);
+        locKal = (TextView) findViewById(R.id.kalman);
+        moving = (TextView) findViewById(R.id.moving);
+        degree = (TextView) findViewById(R.id.degree);
+        ble = (TextView) findViewById(R.id.ble);
+
+        // Map settings
+        mMapView.getMapAsync(this);
 
         // Create an instance of GoogleAPIClient.
         if (mGoogleApiClient == null) {
@@ -114,19 +141,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         //set temp crosswalk position
         Location temp = new Location("");
-        temp.setLatitude(36.373719);
-        temp.setLongitude(127.365111);
+        temp.setLatitude(36.373685);
+        temp.setLongitude(127.365225);
         mCrosswalkPosition.add(temp);
         temp = new Location("");
-        temp.setLatitude(36.373665);
-        temp.setLongitude(127.365061);
+        temp.setLatitude(36.373585);
+        temp.setLongitude(127.365100);
         mCrosswalkPosition.add(temp);
 
         bearingOfCrossWalk = mCrosswalkPosition.get(0).bearingTo(mCrosswalkPosition.get(1));
-        if (bearingOfCrossWalk < 0)
+        if (bearingOfCrossWalk < 0) {
+            Log.d(TAG, "bearingOfCrossWalk is minus  ");
             bearingOfCrossWalk += 360;
-        Log.d(TAG, "crosswalk info distance  " + mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1))
-                + "  bearingTo  " + bearingOfCrossWalk);
+        }
+        bearingOfCrossWalk2 = mCrosswalkPosition.get(1).bearingTo(mCrosswalkPosition.get(0));
+        if (bearingOfCrossWalk2 < 0) {
+            Log.d(TAG, "bearingOfCrossWalk2 is minus  ");
+            bearingOfCrossWalk2 += 360;
+        }
+        distanceBTCrossWalk = mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1));
+        Log.d(TAG, "crosswalk info distance  " + distanceBTCrossWalk
+                + "  bearingTo  " + bearingOfCrossWalk+ "  bearingTo  " + bearingOfCrossWalk2);
     }
 
     /**
@@ -199,10 +234,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onLocationChanged(Location location) {
         Log.d(TAG, "onLocationChanged ");
+        float dist[] = new float[2];
+        float shotPoint = 999.0f, longPoint = 0.0f;
 
         if (location != null) {
             double lat = location.getLatitude();
             double log = location.getLongitude();
+
             mLatitude = String.valueOf(lat);
             mLongitude = String.valueOf(log);
             if(mInitialLatitude.equals("0")) {
@@ -215,15 +253,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 LatLng initPos = new LatLng(lat, log);
                 mMap.addMarker(new MarkerOptions().position(initPos));
                 mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(initPos, 18));
+                mKalmanFilter.SetState(lat, log, location.getAccuracy(),location.getTime());
             }
-
-            mCurrentLocation.setLatitude(lat);
-            mCurrentLocation.setLongitude(log);
-            Log.d(TAG, "onLocationChanged= current mLatitude " + mCurrentLocation.getLatitude() + "  mLongitude  " + mCurrentLocation.getLongitude());
+            mKalmanFilter.Process(lat, log, location.getAccuracy(), location.getTime());
+            mCurrentLocation.setLatitude(mKalmanFilter.get_lat());
+            mCurrentLocation.setLongitude(mKalmanFilter.get_lng());
 
             if (mCurrentLocation != null && mInitialLocation != null) {
-
-                addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
 
                 if(preStepCount != stepCount) {
                     isMoving = true;
@@ -233,28 +269,49 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
                 preStepCount = stepCount;
 
+                locGps.setText("c " + lat + " " + log);
+                locKal.setText("K " + mKalmanFilter.get_lat() + " " + mKalmanFilter.get_lng());
+                moving.setText("Moving " + isMoving + " stepCount " + stepCount);
+
                 if (isMoving) { //Send BLE packet when the pedestrian is walking
                     Location temp = new Location("");
                     for (int i=0; i < mCrosswalkPosition.size(); i++) {
                         temp = mCrosswalkPosition.get(i);
-                        float bearingMove =  mPreLocation.bearingTo(mCurrentLocation);
-                        if (bearingMove < 0)
-                            bearingMove += 360;
-                        Log.d(TAG, "distanceTo = " + temp.distanceTo(mCurrentLocation) + "  bearingTo = " + bearingMove);
+                        dist[i] = temp.distanceTo(mCurrentLocation);
 
-                        //Send BLE packet when the distance between Pedestrian and crosswalk is lower than 5 meters
-                        if (temp.distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT) {
-                            if (bearingMove > bearingOfCrossWalk - 30 && bearingMove < bearingOfCrossWalk + 30) {//check direction
-                                //mBeaconManager.startBeaconAdvertise(1, 0.0f, 0.0f, 0.0f, 0.0f);//test
-                                addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-                            }
-                        } else {
-                            //mBeaconManager.stopAdvertise();
+                        if (dist[i] < shotPoint) {
+                            shotPoint = dist[i];
                         }
-
+                        if(dist[i] > longPoint) {
+                            longPoint = dist[i];
+                        }
                     }
-                    mPreLocation.setLatitude(mCurrentLocation.getLatitude());
-                    mPreLocation.setLongitude(mCurrentLocation.getLongitude());
+                    //Send BLE packet when the distance between Pedestrian and crosswalk is lower than 5 meters
+                    if (shotPoint < THRESHOLD_DISTANCE_TO_ALERT || longPoint < distanceBTCrossWalk) {
+                        if (azimuth > bearingOfCrossWalk - 30 && azimuth < bearingOfCrossWalk + 30 ||
+                                azimuth > bearingOfCrossWalk2 - 30 && azimuth < bearingOfCrossWalk2 + 30) {
+                            isInCrossWalk = true;
+                        }
+                        else {
+                            isInCrossWalk = false;
+                        }
+                    } else {
+                        isInCrossWalk = false;
+                    }
+                    if (isInCrossWalk == true) {
+                        mBeaconManager.startBeaconAdvertise(1, System.currentTimeMillis(), 0.0f, 0.0f, 0.0f);
+                        addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                        ble.setText("Advertise BLE - degree " + azimuth + " distanceTo " + shotPoint);
+                    } else {
+                        mBeaconManager.stopAdvertise();
+                        addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                        ble.setText("stop Advertise " + " distanceTo " + temp.distanceTo(mCurrentLocation));
+                    }
+                }
+                else {
+                    mBeaconManager.stopAdvertise();
+                    addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                    ble.setText("nothing  " + " isMoving " + isMoving);
                 }
 
             }
@@ -301,6 +358,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             SensorManager.getRotationMatrixFromVector( rMat, event.values );
             radianAzimuth = SensorManager.getOrientation( rMat, orientation)[0];
             azimuth = (int) (Math.toDegrees(radianAzimuth)+ 360 ) % 360; // Rotation of Z-axis
+            degree.setText("azimuth " + azimuth);
         }
     }
 
@@ -313,6 +371,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onResume() {
         Log.d(TAG, "onResume ");
         super.onResume();
+        mMapView.onResume();
         if (mGoogleApiClient.isConnected()) {
             Log.d(TAG, "mGoogleApiClient Connected ");
             startLocationUpdates();
@@ -324,6 +383,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Log.d(TAG, "onStart ");
         super.onStart();
         mGoogleApiClient.connect();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mMapView.onPause();
     }
 
     @Override
