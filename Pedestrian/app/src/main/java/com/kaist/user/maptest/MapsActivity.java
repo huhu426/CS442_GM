@@ -19,6 +19,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.PopupWindow;
+import android.widget.RelativeLayout;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -57,12 +58,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     Location mPreLocation = new Location("");
     LocationManager locationManager;
     LocationRequest locationRequest;
+    View v;
 
     //for checking movement
     int stepCount = 0;
     int preStepCount = 0;
     boolean isMoving = false;
-    boolean popup_timing = false;
+    boolean popup_timing = true;
     double checkPoint = 0;
     float bearingOfCrossWalk = 0.0f;
     double sigma = 0;
@@ -136,7 +138,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Log.d(TAG, "crosswalk info distance  " + mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1))
                 + "  bearingTo  " + bearingOfCrossWalk);
 
-        popup = new PopupWindow();
+        v = getLayoutInflater().inflate(R.layout.popup_window, null);
+        popup = new PopupWindow(v, RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+
     }
 
     /**
@@ -240,8 +244,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if(!popup.isShowing() && !popup_timing) { // if popup window is not showing and on time
                         // show popup window ~ after hands up, popup must be dismissed
                         popup_timing = true; // later, when user is far enough from both side of crosswalk, pop_timing turn to false.
-                        LayoutInflater inflater = (LayoutInflater)getApplicationContext().getSystemService(LAYOUT_INFLATER_SERVICE);
-                        View v = inflater.inflate(R.layout.popup_window, null);
+
                         popup.setContentView(v);
                         popup.setWindowLayoutMode(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
                         popup.setTouchable(true);
@@ -340,6 +343,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onResume() {
         Log.d(TAG, "onResume ");
+        popup_timing = false;
         super.onResume();
         if (mGoogleApiClient.isConnected()) {
             Log.d(TAG, "mGoogleApiClient Connected ");
