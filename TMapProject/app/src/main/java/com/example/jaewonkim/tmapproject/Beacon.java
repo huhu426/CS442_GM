@@ -1,5 +1,6 @@
 package com.example.jaewonkim.tmapproject;
 
+import android.app.ActionBar;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGattServer;
 import android.bluetooth.BluetoothManager;
@@ -13,12 +14,22 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.os.CountDownTimer;
 import android.os.ParcelUuid;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.PopupWindow;
 import android.widget.Toast;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 
 /**
@@ -29,8 +40,14 @@ public class Beacon {
     private BluetoothLeAdvertiser mBTAdvertiser;
     private BluetoothLeScanner mBTScanner;
     private BluetoothGattServer mGattServer;
+    private View view;
+    private int id;
+    private boolean is_popup = false;
+    private PopupWindow popup;
 
-    private Beacon(Context context){
+    public Beacon(View v){
+        view = v;
+        Context context = v.getContext();
         if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             return;
@@ -42,6 +59,38 @@ public class Beacon {
         if ((mBTAdapter == null) || (!mBTAdapter.isEnabled())) {
             Toast.makeText(context, R.string.bt_unavailable, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public void setup_popup() {
+        Context context = view.getContext();
+        popup = new PopupWindow(view);
+        LayoutInflater inflater = (LayoutInflater)context.getSystemService(context.LAYOUT_INFLATER_SERVICE);
+        View view = inflater.inflate(R.layout.popup_window, null);
+        popup.setContentView(view);
+        popup.setWindowLayoutMode(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+        popup.setTouchable(true);
+        popup.setFocusable(true);
+        popup.showAtLocation(view, Gravity.CENTER, 0, 0);
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new ColorDrawable());
+        popup.showAsDropDown(view);
+
+        new CountDownTimer(3000, 1000) {
+
+            @Override
+            public void onTick(long millisUntilFinished) {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void onFinish() {
+                // TODO Auto-generated method stub
+                if(popup.isShowing())
+                    popup.dismiss();
+                is_popup = false;
+            }
+        }.start();
     }
 
     private static AdvertiseSettings createAdvSettings(boolean connectable, int timeoutMillis) {
@@ -103,7 +152,7 @@ public class Beacon {
             System.arraycopy(float2ByteArray(lattitude),0,mData,4,4);
             System.arraycopy(float2ByteArray(longitude), 0, mData, 8, 4);
             System.arraycopy(float2ByteArray(degree),0,mData,12,4);
-            System.arraycopy(float2ByteArray(velocity),0,mData,16,4);
+            System.arraycopy(float2ByteArray(velocity), 0, mData, 16, 4);
 
             mBTAdvertiser.startAdvertising(
                     createAdvSettings(false, 0),
@@ -129,6 +178,10 @@ public class Beacon {
         //return ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).getFloat();
     }
 
+    public long bytesTolong(byte[] bytes) {
+        return ByteBuffer.wrap(bytes).getLong();
+    }
+
     public int bytesToInt(byte[] bytes) {
         return ByteBuffer.wrap(bytes).getInt();
         //return ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).getFloat();
@@ -138,14 +191,28 @@ public class Beacon {
         @Override
         public void onScanResult(int callbackType, ScanResult result)
         {
+
             super.onScanResult(callbackType, result);
             byte[] mbyte = result.getScanRecord().getBytes();
+            int index = bytesToInt(Arrays.copyOfRange(mbyte, 4, 8));
+            long advTime = bytesTolong(Arrays.copyOfRange(mbyte, 8, 16));
 
-            if(mbyte[2]==0x0a && mbyte[3]==0x18) {
-                //네비로부터 위험신호를 수신한 경우.
-                /*******************************************************
-                 사용자에게 위험신호 발생시키는 코드
-                 ******************************************************/
+//            Log.d("Scan", "Scan Success" + mbyte[2] + mbyte[3]);
+//            Toast.makeText(context, "Scan Success" + mbyte[2] + mbyte[3], Toast.LENGTH_SHORT);
+
+            if(mbyte[2]==0x0a && mbyte[3]==0x64) {
+                if((id == index)&&(!is_popup)) {
+                    long current_time = System.currentTimeMillis();
+                    long diff = current_time - advTime;
+                    Log.d("Scan", "Snd Time: "+advTime + "Rcv Time: "+current_time);
+                    Log.d("Scan", "Difference: " + diff);
+//                    Toast.makeText(context, "WATCH OUT!", Toast.LENGTH_SHORT).show();
+                    Log.d("Scan", "PopUP");
+                    setup_popup();
+                    is_popup = true;
+                }
+//                else
+//                    Log.d("Scan", "Ignore");
             }
             else if(mbyte[2]==0x0a && mbyte[3]==0xe7) {
                 /* 주위에 네비가 있는 정보를 수신한 경우 */
@@ -163,19 +230,23 @@ public class Beacon {
         }
     };
 
-    public void scanAdvertise(){
+    public void scanAdvertise(int id){
+        this.id = id;
         if (mBTAdapter == null) {
+            Log.d("Scan", "mBTAdapter == null");
             return;
         }
         if (mBTScanner == null) {
+            Log.d("Scan", "mBTAdapter == null");
             mBTScanner = mBTAdapter.getBluetoothLeScanner();
         }
-        else if (mBTScanner != null) {
+        if (mBTScanner != null) {
             ScanSettings.Builder msetbuilder = new ScanSettings.Builder();
             msetbuilder.setReportDelay(0);
             msetbuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
 
             mBTScanner.startScan(null, msetbuilder.build(), mScanCallback);
+            Log.d("Scan", "Scan Start");
         }
     }
 
