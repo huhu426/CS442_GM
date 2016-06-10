@@ -1,8 +1,10 @@
 package com.kaist.user.maptest;
 
 import android.Manifest;
+import android.app.ActionBar;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.ColorDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -13,6 +15,10 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.PopupWindow;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -41,6 +47,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private SensorManager mSensorManager;
     private Sensor mAccSensor;
     private Sensor mRotationSensor;
+    private PopupWindow popup;
 
     //for GPS tracking
     String mLatitude = "36.32138824", mLongitude = "127.41972351";
@@ -55,6 +62,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     int stepCount = 0;
     int preStepCount = 0;
     boolean isMoving = false;
+    boolean popup_timing = false;
     double checkPoint = 0;
     float bearingOfCrossWalk = 0.0f;
     double sigma = 0;
@@ -127,6 +135,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             bearingOfCrossWalk += 360;
         Log.d(TAG, "crosswalk info distance  " + mCrosswalkPosition.get(0).distanceTo(mCrosswalkPosition.get(1))
                 + "  bearingTo  " + bearingOfCrossWalk);
+
+        popup = new PopupWindow();
     }
 
     /**
@@ -224,6 +234,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             if (mCurrentLocation != null && mInitialLocation != null) {
 
                 addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+
+                if((mCrosswalkPosition.get(0).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT)||(mCrosswalkPosition.get(1).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT)) {
+                    //if user is close to crosswalk, show popup
+                    if(!popup.isShowing() && !popup_timing) { // if popup window is not showing and on time
+                        // show popup window ~ after hands up, popup must be dismissed
+                        popup_timing = true; // later, when user is far enough from both side of crosswalk, pop_timing turn to false.
+                        LayoutInflater inflater = (LayoutInflater)getApplicationContext().getSystemService(LAYOUT_INFLATER_SERVICE);
+                        View v = inflater.inflate(R.layout.popup_window, null);
+                        popup.setContentView(v);
+                        popup.setWindowLayoutMode(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+                        popup.setTouchable(true);
+                        popup.setFocusable(true);
+                        popup.showAtLocation(v, Gravity.CENTER, 0, 0);
+                        popup.setOutsideTouchable(true);
+                        popup.setBackgroundDrawable(new ColorDrawable());
+                        popup.showAsDropDown(v);
+                    }
+                }
 
                 if(preStepCount != stepCount) {
                     isMoving = true;
