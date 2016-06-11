@@ -26,18 +26,24 @@ import javax.xml.parsers.ParserConfigurationException;
 
 public class MainActivity extends AppCompatActivity implements TMapGpsManager.onLocationChangedCallback, TMapView.OnLongClickListenerCallback {
 
+    final int crosswalk_id = 1;
+
     TMapView tmapview= null;
     TMapGpsManager tmapgps;
     TMapPoint current_point = null;
     TMapPoint end_point;
     TMapPoint crosswalk;
-    int crosswalk_id;
     ArrayList arPoint;
     String arr;
+
+    Beacon mBeaconManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
 
         Intent intent = getIntent();
         double lat = intent.getDoubleExtra("lat", 0);
@@ -46,22 +52,13 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
 
         tmap_init();
         tmapgps = new TMapGpsManager(this);
-
         current_point = new TMapPoint(0, 0);
+        mBeaconManager = new Beacon(getWindow().getDecorView().getRootView());
         crosswalk = new TMapPoint(36.373692, 127.365086);
-        crosswalk_id = 1;
-        TMapMarkerItem cw = new TMapMarkerItem();
-        cw.setTMapPoint(crosswalk);
-        cw.setVisible(TMapMarkerItem.VISIBLE);
+        draw_point(crosswalk);
         arPoint = new ArrayList<TMapPoint>();
 
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                give_warning();
-            }
-        });
-        thread.start();
+        mBeaconManager.scanAdvertise(crosswalk_id);
     }
 
     @Override
@@ -78,8 +75,6 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         tmapgps.setLocationCallback();
         tmapgps.setMinTime(1000);
         tmapgps.OpenGps();
-
-
     }
 
     public void tmap_init() {
@@ -103,7 +98,6 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
             tmapdata.findPathData(current_point, end_point, new TMapData.FindPathDataListenerCallback() {
                 @Override
                 public void onFindPathData(TMapPolyLine polyLine) {
-                    polyLine.addLinePoint(crosswalk);
                     tmapview.addTMapPath(polyLine);
                     arPoint.addAll(polyLine.getLinePoint());
                     Log.d("arPoint", arPoint.toString());
@@ -219,13 +213,13 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         double c_lon = crosswalk.getLongitude();
         double dist = measure(lat, lon, c_lat, c_lon);
         if(dist < 50) {
-            //do something about BLE
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(getApplicationContext(), "CrossWalk!", Toast.LENGTH_LONG).show();
-                }
-            });
+//            //do something about BLE
+//            runOnUiThread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    Toast.makeText(getApplicationContext(), "CrossWalk!", Toast.LENGTH_LONG).show();
+//                }
+//            });
         }
 
     }
@@ -242,12 +236,13 @@ public class MainActivity extends AppCompatActivity implements TMapGpsManager.on
         return d * 1000; // meters
     }
 
-    public void give_warning() { // run as thread, give warning when BLE signal is detected && has same crosswalk_id
-        while(true) {
-            // scanning BLE
-            // if it receives ble warning msg,
-            // and if given id is same with crosswalk_id,
-            // give warning msg like Toast or something like that
-        }
-    }
+//    public void give_warning() { // run as thread, give warning when BLE signal is detected && has same crosswalk_id
+//        mBeaconManager.scanAdvertise();
+//        while(true) {
+//            // scanning BLE
+//            // if it receives ble warning msg,
+//            // and if given id is same with crosswalk_id,
+//            // give warning msg like Toast or something like that
+//        }
+//    }
 }

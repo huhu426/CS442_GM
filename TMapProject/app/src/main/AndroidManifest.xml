@@ -25,4 +25,12 @@
         </activity>
 
     </application>
+<<<<<<< HEAD
+=======
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+>>>>>>> b005194f76eee2df189e5b17f32140b743175e31
 </manifest>
