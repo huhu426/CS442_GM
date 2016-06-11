@@ -1,10 +1,8 @@
 package com.kaist.user.maptest;
 
 import android.Manifest;
-import android.app.ActionBar;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.ColorDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -15,11 +13,10 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
-import android.widget.TextView;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -52,6 +49,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private TextView ble;
 
     final float THRESHOLD_DISTANCE_TO_ALERT = 5.0f; // 5 meters
+    final float THRESHOLD_DISTANCE_TO_POPUP = 15.0f; // 20 meters
 
     private SensorManager mSensorManager;
     private Sensor mAccSensor;
@@ -281,22 +279,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             if (mCurrentLocation != null && mInitialLocation != null) {
 
-                addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                if((mCrosswalkPosition.get(0).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_POPUP)||(mCrosswalkPosition.get(1).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_POPUP)) {
+                    if (azimuth > bearingOfCrossWalk - 30 && azimuth < bearingOfCrossWalk + 30 ||
+                            azimuth > bearingOfCrossWalk2 - 30 && azimuth < bearingOfCrossWalk2 + 30) {
+                        if (mCrosswalkPosition.get(0).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_POPUP)
+                            close_i = 1;
+                        else
+                            close_i = 2;
+/*
+                        //if user is close to crosswalk, show popup
+                        if (!popup.isShowing() && !popup_timing) { // if popup window is not showing and on time
+                            // show popup window ~ after hands up, popup must be dismissed
+                            popup_timing = true; // later, when user is far enough from both side of crosswalk, pop_timing turn to false.
 
-                if((mCrosswalkPosition.get(0).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT)||(mCrosswalkPosition.get(1).distanceTo(mCurrentLocation) < THRESHOLD_DISTANCE_TO_ALERT)) {
-                    //if user is close to crosswalk, show popup
-                    if(!popup.isShowing() && !popup_timing) { // if popup window is not showing and on time
-                        // show popup window ~ after hands up, popup must be dismissed
-                        popup_timing = true; // later, when user is far enough from both side of crosswalk, pop_timing turn to false.
-
-                        popup.setContentView(v);
-                        popup.setWindowLayoutMode(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
-                        popup.setTouchable(true);
-                        popup.setFocusable(true);
-                        popup.showAtLocation(v, Gravity.CENTER, 0, 0);
-                        popup.setOutsideTouchable(true);
-                        popup.setBackgroundDrawable(new ColorDrawable());
-                        popup.showAsDropDown(v);
+                            popup.setContentView(v);
+                            popup.setWindowLayoutMode(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+                            popup.setTouchable(true);
+                            popup.setFocusable(true);
+                            popup.showAtLocation(v, Gravity.CENTER, 0, 0);
+                            popup.setOutsideTouchable(true);
+                            popup.setBackgroundDrawable(new ColorDrawable());
+                            popup.showAsDropDown(v);
+                            Log.d(TAG, "popup  close_i  " + close_i + "  loc1  " + mCrosswalkPosition.get(0).distanceTo(mCurrentLocation) + "  loc2  " + mCrosswalkPosition.get(1).distanceTo(mCurrentLocation));
+                        }
+                        */
                     }
                 }
 
@@ -342,15 +348,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
                         ble.setText("Advertise BLE - degree " + azimuth + " distanceTo " + shotPoint);
                     } else {
-                        mBeaconManager.stopAdvertise();
-                        addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-                        ble.setText("stop Advertise " + " distanceTo " + temp.distanceTo(mCurrentLocation));
+                        if (popup_timing == true) {
+                            mBeaconManager.startBeaconAdvertise(1, System.currentTimeMillis(), 0.0f, 0.0f, 0.0f);
+                            addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                            ble.setText("Advertise BLE - degree " + azimuth + " distanceTo " + shotPoint);
+                        } else {
+                            mBeaconManager.stopAdvertise();
+                            addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                            ble.setText("stop Advertise " + " distanceTo " + temp.distanceTo(mCurrentLocation));
+                        }
                     }
                 }
                 else {
-                    mBeaconManager.stopAdvertise();
-                    addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-                    ble.setText("nothing  " + " isMoving " + isMoving);
+                    if (popup_timing == true) {
+                        mBeaconManager.startBeaconAdvertise(1, System.currentTimeMillis(), 0.0f, 0.0f, 0.0f);
+                        addMarker("yellow", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                        ble.setText("Advertise BLE - degree " + azimuth + " distanceTo " + shotPoint);
+                    } else {
+                        mBeaconManager.stopAdvertise();
+                        addMarker("blue", mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+                        ble.setText("nothing  " + " isMoving " + isMoving);
+                    }
                 }
 
             }
@@ -392,7 +410,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             sqrt = Math.sqrt(gravity[0]*gravity[0] + gravity[1]*gravity[1] + gravity[2] * gravity[2]);
 
             if(calculateSigma((float) sqrt,gravity[1]) == 1) { // check step count & raising hand check, if return value is 1, then that means detecting to raise hand
-                mBeaconManager.startBeaconAdvertise(close_i,  System.currentTimeMillis(), 0.0f, 0.0f, 0.0f);//test
+                mBeaconManager.startBeaconAdvertise(1,  System.currentTimeMillis(), 0.0f, 0.0f, 0.0f);//test
             }
             //calculateSigma((float) sqrt); // check step count
         }
@@ -459,9 +477,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         magnitudeAcc_Y[FILTER_BUF_NUM-1] = ac_y;
         magnitudepitch[FILTER_BUF_NUM-1] = pitch;
 
+        int local_flag=0;
+
         for (i = FILTER_BUF_NUM - 1; i >= 5; i--) {
             sum += magnitudeAcc[i];
             sum_acy += magnitudeAcc_Y[i];
+            if(magnitudepitch[i]<270.0 || magnitudepitch[i]>310)
+                local_flag=1;
         }
         localMean = sum / FILTER_NUM;
         localMean_Y = sum_acy / FILTER_NUM;
@@ -489,13 +511,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             checkPoint = 1.0;
 
         if(popup.isShowing()){
-            if(localMean_Y < 4.0 && sigma_y < 0.7){
-                if(flag_check==0) {
-                    flag_check = 1;
+            if(local_flag==0 && localMean_Y < 4.0 && sigma_y < 0.7){
                     popup.dismiss();
-
                     return 1;
-                }
             }
         }
         return 0;
