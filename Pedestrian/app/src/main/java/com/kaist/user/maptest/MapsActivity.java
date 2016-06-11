@@ -61,6 +61,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     LocationRequest locationRequest;
 
     //for checking movement
+    int close_i = 0;
+    int flag_check = 0;
     int stepCount = 0;
     int preStepCount = 0;
     boolean isMoving = false;
@@ -72,10 +74,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     final int FILTER_BUF_NUM = 16;
     final int FILTER_NUM = 11;
     float magnitudeAcc[] = new float[FILTER_BUF_NUM];
+    float magnitudepitch[] = new float[FILTER_BUF_NUM];
+    float magnitudeAcc_Y[] = new float[FILTER_BUF_NUM];
     float gravity[]=new float[3];
     float rMat[] = new float[9];
     float orientation[] = new float[3];
     private float azimuth; // View to draw a compass
+    private float pitch; // View to draw a compass
     private float radianAzimuth; // View to draw a compass
     boolean isInCrossWalk=false;
 
@@ -352,12 +357,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             sqrt = Math.sqrt(gravity[0]*gravity[0] + gravity[1]*gravity[1] + gravity[2] * gravity[2]);
 
-            calculateSigma((float) sqrt); // check step count
+            if(calculateSigma((float) sqrt,gravity[1]) == 1) { // check step count & raising hand check, if return value is 1, then that means detecting to raise hand
+                mBeaconManager.startBeaconAdvertise(close_i, 0.0f, 0.0f, 0.0f, 0.0f);//test
+            }
+            //calculateSigma((float) sqrt); // check step count
         }
         else if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
             SensorManager.getRotationMatrixFromVector( rMat, event.values );
             radianAzimuth = SensorManager.getOrientation( rMat, orientation)[0];
             azimuth = (int) (Math.toDegrees(radianAzimuth)+ 360 ) % 360; // Rotation of Z-axis
+            pitch = (int) ( Math.toDegrees( SensorManager.getOrientation( rMat, orientation )[1] ) + 360 ) % 360;
             degree.setText("azimuth " + azimuth);
         }
     }
@@ -400,28 +409,41 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onStop();
     }
 
-    public void calculateSigma(float a) {
-        float sum = 0.0f;
-        float localMean = 0.0f;
+
+    public int calculateSigma(float a,float ac_y) {
+        float sum = 0.0f,sum_acy = 0.0f;
+        float localMean = 0.0f,localMean_Y = 0.0f;
+        double sigma_y;
         int i = 0;
         for (i = 1 ; i < FILTER_BUF_NUM; i++) {
             magnitudeAcc[i - 1] = magnitudeAcc[i];
+            magnitudeAcc_Y[i - 1] = magnitudeAcc_Y[i];
+            magnitudepitch[i - 1] = magnitudepitch[i];
         }
         magnitudeAcc[FILTER_BUF_NUM-1] = a;
+        magnitudeAcc_Y[FILTER_BUF_NUM-1] = ac_y;
+        magnitudepitch[FILTER_BUF_NUM-1] = pitch;
 
         for (i = FILTER_BUF_NUM - 1; i >= 5; i--) {
             sum += magnitudeAcc[i];
+            sum_acy += magnitudeAcc_Y[i];
         }
         localMean = sum / FILTER_NUM;
+        localMean_Y = sum_acy / FILTER_NUM;
 
-        sum = 0;
+        sum = sum_acy = 0;
         for (i = FILTER_BUF_NUM - 1; i > FILTER_BUF_NUM - 6; i--) {
             sum += Math.pow((magnitudeAcc[i - 6] - localMean), 2);
             sum += Math.pow((magnitudeAcc[i] - localMean), 2);
+
+            sum_acy += Math.pow((magnitudeAcc_Y[i - 6] - localMean_Y), 2);
+            sum_acy += Math.pow((magnitudeAcc_Y[i] - localMean_Y), 2);
         }
         sum += Math.pow((magnitudeAcc[10] - localMean), 2);
+        sum_acy += Math.pow((magnitudeAcc_Y[10] - localMean_Y), 2);
 
         sigma = Math.sqrt((double) (sum / FILTER_NUM));
+        sigma_y = Math.sqrt((double) (sum_acy / FILTER_NUM));
 
         if (checkPoint >= 1.0 && sigma < 0.2) {
             stepCount++;
@@ -431,7 +453,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if(sigma>1.0)
             checkPoint = 1.0;
 
+        if(popup_timing == true){
+            if(localMean_Y < 4.0 && sigma_y < 0.7){
+                if(flag_check==0) {
+                    flag_check = 1;
+                    return 1;
+                }
+            }
+        }
+        return 0;
         //Log.d(TAG, "sigma\t" + sigma + "       " + stepCount);
     }
 
 }
+
+
